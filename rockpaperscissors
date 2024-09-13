@@ -1,0 +1,108 @@
+from google.colab import files
+from tensorflow.keras.preprocessing import image
+import numpy as np
+import os
+import zipfile
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
+import matplotlib.pyplot as plt
+
+#mengakses datasets
+!wget link_dataset \https://github.com/dicodingacademy/assets/releases/download/release/rockpaperscissors.zip
+
+base_dir = os.path.join('/content/rockpaperscissors/rockpaperscissors/rps-cv-images')
+os.listdir(base_dir)
+
+import tensorflow as tf
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+#melakukan rescale, membagi 40% data menjadi validation
+#mengubah posisi gambar dengan memberi zoom,flip, dan rotation
+train_generator = ImageDataGenerator(
+    rescale = 1./255,
+    validation_split = 0.4,
+    zoom_range = 0.2,
+    horizontal_flip = True,
+    rotation_range = 20,
+    shear_range = 0.2,
+    fill_mode = 'wrap'
+)
+#membagi data menjadi train dan validation
+train_images = train_generator.flow_from_directory(
+    base_dir,
+    target_size = (150,150),
+    color_mode='rgb',
+    classes=None,
+    class_mode='categorical',
+    shuffle = True,
+    seed = 42,
+    subset = 'training'
+)
+validation_images = train_generator.flow_from_directory(
+    base_dir,
+    target_size = (150,150),
+    color_mode='rgb',
+    classes=None,
+    class_mode='categorical',
+    shuffle = False,
+    seed = 42,
+    subset = 'validation'
+)
+#membuat model
+model = Sequential([
+    Conv2D(32, (3, 3), activation='relu', input_shape=(150, 150, 3)),
+    MaxPooling2D(2, 2),
+
+    Conv2D(64, (3, 3), activation='relu'),
+    MaxPooling2D(2, 2),
+
+    Conv2D(128, (3, 3), activation='relu'),
+    MaxPooling2D(2, 2),
+
+    Conv2D(256, (3, 3), activation='relu'),
+    MaxPooling2D(2, 2),
+
+    Flatten(),
+    Dropout(0.4),
+    Dense(512, activation='relu'),
+    Dense(3, activation='softmax')
+])
+
+model.compile(
+    optimizer=tf.optimizers.Adam(),
+    loss='categorical_crossentropy',
+    metrics=['accuracy']
+)
+
+history = model.fit(train_images,
+                    validation_data=validation_images,
+                    epochs=20,
+                    callbacks=[
+                      tf.keras.callbacks.EarlyStopping(
+                        monitor='val_loss',patience=5,restore_best_weights=True) ]
+)
+
+# Fungsi untuk memprediksi gambar dan menampilkan
+def predict_and_display_image(model, img_path):
+    img = image.load_img(img_path, target_size=(150, 150))
+    img_array = image.img_to_array(img)
+    img_array = np.expand_dims(img_array, axis=0) / 255.0
+    predictions = model.predict(img_array)
+
+    # Mendapatkan kelas prediksi
+    predicted_class = np.argmax(predictions)
+    class_names = ['paper', 'rock', 'scissors']
+
+    # Menampilkan gambar
+    plt.imshow(img)
+    plt.axis('off')
+    plt.title(f"Predicted class: {class_names[predicted_class]}")
+    plt.show()
+
+# Upload gambar untuk diprediksi
+uploaded = files.upload()
+
+# Ambil nama file gambar yang diupload
+img_path = list(uploaded.keys())[0]
+
+# Melakukan prediksi dan menampilkan gambar menggunakan model
+predict_and_display_image(model, img_path)
